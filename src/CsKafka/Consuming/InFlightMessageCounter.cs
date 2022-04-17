@@ -42,11 +42,12 @@ namespace CsKafka.Consuming
 
         public void AwaitThreshold(IConsumer<string, byte[]> consumer, CancellationToken cancellationToken)
         {
-            // If in flight bytes is over limit
+            // If in-flight bytes is over limit
             // Waiting until it less than minInFlightBytes or cancellation requested
             if (IsOverLimit())
             {
-                _logger.LogInformation("");
+                _logger.LogInformation("[Consuming] Exceeded in-flight message threshold (now {CurrentB}B), " +
+                    "Waiting until it drops to < {MinB}B", _inflightBytes, _minInFlightBytes);
 
                 while (Volatile.Read(ref _inflightBytes) > _minInFlightBytes 
                     && !cancellationToken.IsCancellationRequested)                
