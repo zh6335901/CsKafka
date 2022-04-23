@@ -10,20 +10,16 @@ namespace CsKafka.Producing
     public class KafkaProducerOptions
     {
         private KafkaProducerOptions(
-            string clientId, 
             string bootstrapServers, 
             ProducerConfig inner)
         {
-            ClientId = clientId;
             BootstrapServers = bootstrapServers;
             Inner = inner;
         }
 
-        public string ClientId { get; init; }
+        public string BootstrapServers { get; private init; }
 
-        public string BootstrapServers { get; init; }
-
-        public ProducerConfig Inner { get; init; }
+        public ProducerConfig Inner { get; private init; }
 
         /// <summary>
         /// Creates KafkaProducerOptions instance that wraps a Confluent.Kafka ProducerConfig with some specified settings
@@ -77,7 +73,7 @@ namespace CsKafka.Producing
                 EnableIdempotence = batching is Batching.EnsureOrderByEnableIdempotence ? true : false,
             };
 
-            return new KafkaProducerOptions(clientId, bootstrapServers, innerProducerConfig);
+            return new KafkaProducerOptions(bootstrapServers, innerProducerConfig);
         }
     }
 }
