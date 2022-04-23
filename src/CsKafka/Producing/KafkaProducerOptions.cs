@@ -30,8 +30,8 @@ namespace CsKafka.Producing
         /// <param name="batching">Batching options</param>
         /// <param name="compressionType">Compression type, Default is CompressionType.None</param>
         /// <param name="retries">Retries count, Default is 2</param>
-        /// <param name="retryBackoffMs">Retry backoff interval, Default is 100ms</param>
-        /// <param name="requestTimeoutMs">Ack timeout (assuming Acks != Acks.Zero). Default is 5s</param>
+        /// <param name="retryBackoff">Retry backoff interval, Default is 100ms</param>
+        /// <param name="requestTimeout">Ack timeout (assuming Acks != Acks.Zero), Default is 5s</param>
         /// <param name="messageMaxBytes">The max bytes of message, Default is 1MB</param>
         /// <param name="custom">Custom producer config props</param>
         /// <returns></returns>
@@ -42,19 +42,21 @@ namespace CsKafka.Producing
             Batching batching,
             CompressionType compressionType = CompressionType.None,
             int retries = 2,
-            int retryBackoffMs = 100,
-            int requestTimeoutMs = 5000, 
+            TimeSpan? retryBackoff = null,
+            TimeSpan? requestTimeout = null, 
             int messageMaxBytes = 1024 * 1024, 
             IDictionary<string, string>? custom = null)
         {
             custom ??= new Dictionary<string, string>();
+            retryBackoff ??= TimeSpan.FromMilliseconds(100);
+            requestTimeout ??= TimeSpan.FromSeconds(5);
 
-            var (lingerMs, maxInFlight) = batching switch
+            var (lingerSpan, maxInFlight) = batching switch
             {
-                Batching.Linger l                         => (l.LingerMs, (int?)null),
-                Batching.EnsureOrder e                    => (e.LingerMs, 1),
-                Batching.EnsureOrderByEnableIdempotence e => (e.LingerMs, 5),
-                Batching.Custom c                         => (c.LingerMs, c.MaxInFlight),
+                Batching.Linger l                         => (l.LingerSpan, (int?)null),
+                Batching.EnsureOrder e                    => (e.LingerSpan, 1),
+                Batching.EnsureOrderByEnableIdempotence e => (e.LingerSpan, 5),
+                Batching.Custom c                         => (c.LingerSpan, c.MaxInFlight),
                 _                                         => throw new NotSupportedException()
             };
 
@@ -64,11 +66,11 @@ namespace CsKafka.Producing
                 BootstrapServers = bootstrapServers,
                 Acks = acks,
                 MaxInFlight = maxInFlight ?? 1_000_000, // default 1_000_000
-                LingerMs = lingerMs,
+                LingerMs = lingerSpan.TotalMilliseconds,
                 CompressionType = compressionType,
                 MessageSendMaxRetries = retries,
-                RetryBackoffMs = retryBackoffMs,
-                RequestTimeoutMs = requestTimeoutMs,
+                RetryBackoffMs = (int)retryBackoff.Value.TotalMilliseconds,
+                RequestTimeoutMs = (int)requestTimeout.Value.TotalMilliseconds,
                 MessageMaxBytes = messageMaxBytes,
                 EnableIdempotence = batching is Batching.EnsureOrderByEnableIdempotence ? true : false,
             };

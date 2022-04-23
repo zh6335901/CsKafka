@@ -1,4 +1,6 @@
-﻿namespace CsKafka.Producing
+﻿using System;
+
+namespace CsKafka.Producing
 {
     /// <summary>
     /// Defines semantics for batch of messages into message sets in order to balance
@@ -10,26 +12,26 @@
         /// <summary>
         /// Produce individually, lingering for throughput + compression
         /// </summary>
-        /// <param name="LingerMs"></param>
-        public sealed record Linger(int LingerMs) : Batching;
+        /// <param name="LingerSpan"></param>
+        public sealed record Linger(TimeSpan LingerSpan) : Batching;
 
         /// <summary>
         /// Use MaxInFlight = 1 to ensure messages in order
         /// </summary>
-        /// <param name="LingerMs"></param>
-        public sealed record EnsureOrder(int LingerMs) : Batching;
+        /// <param name="LingerSpan"></param>
+        public sealed record EnsureOrder(TimeSpan LingerSpan) : Batching;
 
         /// <summary>
         /// Use EnableIdempotence = true and MaxInFlight = 5 to ensure messages in order
         /// </summary>
-        /// <param name="LingerMs"></param>
-        public sealed record EnsureOrderByEnableIdempotence(int LingerMs) : Batching;
+        /// <param name="LingerSpan"></param>
+        public sealed record EnsureOrderByEnableIdempotence(TimeSpan LingerSpan) : Batching;
 
         /// <summary>
         /// Apply custom-defined settings
         /// </summary>
-        /// <param name="LingerMs"></param>
+        /// <param name="LingerSpan"></param>
         /// <param name="MaxInFlight"></param>
-        public sealed record Custom(int LingerMs, int MaxInFlight) : Batching;
+        public sealed record Custom(TimeSpan LingerSpan, int MaxInFlight) : Batching;
     }
 }

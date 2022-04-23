@@ -68,6 +68,7 @@ namespace CsKafka.Consuming
             custom ??= new Dictionary<string, string>();
             fetchMaxBytes ??= 100 * 1024;
             messageMaxBytes ??= fetchMaxBytes;
+            autoCommitInterval ??= TimeSpan.FromSeconds(5);
 
             var config = new ConsumerConfig(custom)
             {
@@ -78,7 +79,7 @@ namespace CsKafka.Consuming
                 FetchMaxBytes = fetchMaxBytes,
                 MessageMaxBytes = messageMaxBytes,
                 StatisticsIntervalMs = (int?)statisticsInterval?.TotalMilliseconds,
-                AutoCommitIntervalMs = (int?)autoCommitInterval?.TotalMilliseconds,
+                AutoCommitIntervalMs = (int)autoCommitInterval.Value.TotalMilliseconds,
                 AllowAutoCreateTopics = allowAutoCreateTopics,
                 EnableAutoCommit = true,
                 EnableAutoOffsetStore = false,
