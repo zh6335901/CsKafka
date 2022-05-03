@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# CA2017: 参数计数不匹配。
+dotnet_diagnostic.CA2017.severity = silent

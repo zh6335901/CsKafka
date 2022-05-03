@@ -26,16 +26,15 @@ namespace CsKafka.Producing
 
             Topic = topic;
             Inner = new ProducerBuilder<string, byte[]>(options.Inner)
-                .SetLogHandler((_, m) =>
-                {
-                    if (logger.IsEnabled(LogLevel.Information))
-                        logger.LogInformation(
-                            "[Producing] {message} level={level} name={name} facility={facility}",
-                            m.Message, m.Level, m.Name, m.Facility);
-                })
+                .SetLogHandler((_, m) =>               
+                    logger.LogInformationIfEnabled(
+                        "[Producing] {message} level={level} name={name} facility={facility}",
+                        m.Message, m.Level, m.Name, m.Facility
+                    )
+                )
                 .SetErrorHandler((_, e) => 
                     logger.LogError(
-                        "[Producing] {reason} code={code} isBrokerError={isBrokerError} isFatal={isFatal}", 
+                        "[Producing] Error {reason} code={code} isBrokerError={isBrokerError} isFatal={isFatal}", 
                         e.Reason, e.Code, e.IsBrokerError, e.IsFatal
                     )
                 )
@@ -94,14 +93,14 @@ namespace CsKafka.Producing
         /// <param name="messages">A batch of messages that to be produced</param>
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns></returns>
-        public async Task<DeliveryReport<string, byte[]>[]> ProduceBatchAsync(
+        public Task<DeliveryReport<string, byte[]>[]> ProduceBatchAsync(
             IEnumerable<Message<string, byte[]>> messages,
             CancellationToken cancellationToken = default)
         {
             var messageCount = messages.Count();
 
             if (messageCount == 0)
-                return new DeliveryReport<string, byte[]>[0];
+                return Task.FromResult(new DeliveryReport<string, byte[]>[0]);
 
             var tcs = new TaskCompletionSource<DeliveryReport<string,byte[]>[]>();
             var reports = new DeliveryReport<string, byte[]>[messageCount];
@@ -131,7 +130,7 @@ namespace CsKafka.Producing
 
             Inner.Flush(cancellationToken);
 
-            return await tcs.Task;
+            return tcs.Task;
         }
 
         /// <summary>
