@@ -46,8 +46,12 @@ namespace CsKafka.Consuming
             // Waiting until it less than minInFlightBytes or cancellation requested
             if (IsOverLimit())
             {
-                _logger.LogInformationIfEnabled("[Consuming] Exceeded in-flight message threshold (now {CurrentB}B), " +
-                    "Waiting until it drops to < {MinB}B", _inflightBytes, _minInFlightBytes);
+                _logger.LogInformationIfEnabled(
+                    "[Consuming] Exceeded in-flight message threshold (now {CurrentB}B), " +
+                        "Waiting until it drops to < {MinB}B",
+                    _inflightBytes,
+                    _minInFlightBytes
+                );                
 
                 while (Volatile.Read(ref _inflightBytes) > _minInFlightBytes 
                     && !cancellationToken.IsCancellationRequested)                

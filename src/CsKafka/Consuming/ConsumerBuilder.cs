@@ -25,13 +25,21 @@ namespace CsKafka.Consuming
                 =>
                 logger.LogInformationIfEnabled(
                     "[Consuming] {message} level={level} name={name} facility={facility}",
-                    m.Message, m.Level, m.Name, m.Facility);
+                    m.Message,
+                    m.Level,
+                    m.Name,
+                    m.Facility
+                );
 
             void OnConsumerError(Error e)
                 =>
                 logger.LogError(
                     "[Consuming] Error {reason} code={code} isBrokerError={isBrokerError} isFatal={isFatal}",
-                    e.Reason, e.Code, e.IsBrokerError, e.IsFatal);
+                    e.Reason,
+                    e.Code,
+                    e.IsBrokerError,
+                    e.IsFatal
+                );
 
             void OnPartitionAssigned(List<TopicPartition> ps)
             {
@@ -41,7 +49,7 @@ namespace CsKafka.Consuming
                 {
                     logger.LogInformationIfEnabled(
                         "[Consuming] Assigned {topic} {partitions}",
-                        t.Key, 
+                        t.Key,
                         string.Join(",", t.Select(x => x.Partition.ToString()))
                     );
                 }
@@ -69,8 +77,24 @@ namespace CsKafka.Consuming
 
                 foreach (var t in ts)
                 {
+                    var topic = t.Key;
+                    var offsets = string.Join(",", t);
+
                     if (cos.Error.IsError)
-                        logger.LogError("[Consuming] ");
+                        logger.LogError(
+                            "[Consuming] Committed {topic} {offsets} reason={error} code={code} isBrokerError={isBrokerError}",
+                            topic,
+                            offsets,
+                            cos.Error.Reason,
+                            cos.Error.Code,
+                            cos.Error.IsBrokerError
+                        );
+                    else
+                        logger.LogInformationIfEnabled(
+                            "[Consuming] Committed {topic} {offsets}",
+                            topic,
+                            offsets
+                        );
                 }
             }
         }

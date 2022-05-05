@@ -14,8 +14,8 @@ namespace CsKafka.Producing
     public class KafkaProducer : IDisposable
     {
         public KafkaProducer(
-            string topic, 
-            KafkaProducerOptions options, 
+            string topic,
+            KafkaProducerOptions options,
             ILogger<KafkaProducer> logger)
         {
             if (string.IsNullOrEmpty(topic))
@@ -26,16 +26,22 @@ namespace CsKafka.Producing
 
             Topic = topic;
             Inner = new ProducerBuilder<string, byte[]>(options.Inner)
-                .SetLogHandler((_, m) =>               
+                .SetLogHandler((_, m) =>
                     logger.LogInformationIfEnabled(
                         "[Producing] {message} level={level} name={name} facility={facility}",
-                        m.Message, m.Level, m.Name, m.Facility
+                        m.Message,
+                        m.Level,
+                        m.Name,
+                        m.Facility
                     )
                 )
-                .SetErrorHandler((_, e) => 
+                .SetErrorHandler((_, e) =>
                     logger.LogError(
-                        "[Producing] Error {reason} code={code} isBrokerError={isBrokerError} isFatal={isFatal}", 
-                        e.Reason, e.Code, e.IsBrokerError, e.IsFatal
+                        "[Producing] Error {reason} code={code} isBrokerError={isBrokerError} isFatal={isFatal}",
+                        e.Reason,
+                        e.Code,
+                        e.IsBrokerError,
+                        e.IsFatal
                     )
                 )
                 .Build();
@@ -52,7 +58,7 @@ namespace CsKafka.Producing
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns></returns>
         public Task<DeliveryResult<string, byte[]>> ProduceAsync(
-            Message<string, byte[]> message, 
+            Message<string, byte[]> message,
             CancellationToken cancellationToken = default)
             =>
             Inner.ProduceAsync(Topic, message, cancellationToken);
@@ -65,8 +71,8 @@ namespace CsKafka.Producing
         /// <param name="cancellationToken">Cancellation token</param>
         /// <returns></returns>
         public Task<DeliveryResult<string, byte[]>> ProduceAsync(
-            string key, 
-            byte[] value, 
+            string key,
+            byte[] value,
             CancellationToken cancellationToken = default)
             =>
             ProduceAsync(Message.Create(key, value), cancellationToken);
@@ -102,13 +108,13 @@ namespace CsKafka.Producing
             if (messageCount == 0)
                 return Task.FromResult(new DeliveryReport<string, byte[]>[0]);
 
-            var tcs = new TaskCompletionSource<DeliveryReport<string,byte[]>[]>();
+            var tcs = new TaskCompletionSource<DeliveryReport<string, byte[]>[]>();
             var reports = new DeliveryReport<string, byte[]>[messageCount];
             var completedCount = 0;
 
             cancellationToken.Register(() => tcs.TrySetCanceled());
 
-            var handler = (DeliveryReport<string, byte[]> report) => 
+            var handler = (DeliveryReport<string, byte[]> report) =>
             {
                 if (report.Error.IsError)
                 {
@@ -144,7 +150,7 @@ namespace CsKafka.Producing
             CancellationToken cancellationToken = default)
             =>
             ProduceBatchAsync(
-                messages.Select(m => Message.Create(m.Key, m.Value)), 
+                messages.Select(m => Message.Create(m.Key, m.Value)),
                 cancellationToken
             );
 
@@ -156,8 +162,8 @@ namespace CsKafka.Producing
         /// <returns></returns>
         public Task<DeliveryReport<string, byte[]>[]> ProduceBatchAsync(
             IEnumerable<(
-                string Key, 
-                byte[] Value, 
+                string Key,
+                byte[] Value,
                 IEnumerable<(string Key, byte[] Value)> Headers
             )> messages,
             CancellationToken cancellationToken = default)
