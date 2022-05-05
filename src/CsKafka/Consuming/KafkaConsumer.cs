@@ -34,6 +34,12 @@ namespace CsKafka.Consuming
                 _cancellationTokenSource.Cancel();
         }
 
+        /// <summary>
+        /// Use 'await _consumer.AwaitShutdown()' to await asynchronously until consume loop stop or is faulted. 
+        /// </summary>
+        /// <returns></returns>
+        public Task AwaitShutdown() => _consumingTask;
+
         public static KafkaConsumer Start(
             KafkaConsumerOptions options,
             Func<ConsumeResult<string, byte[]>[], Task> handler,
@@ -49,10 +55,14 @@ namespace CsKafka.Consuming
 
         private class ConsumerImpl
         {
+            private readonly KafkaConsumerOptions _options;
             private readonly PartitionedMessageChannel<ConsumeResult<string, byte[]>> _partitionedMessageChannel;
             private readonly InFlightMessageCounter _inflightMessageCounter;
             private readonly IConsumer<string, byte[]> _consumer;
+
+            private readonly TaskCompletionSource _consumingTaskCompletionSource;
             private readonly CancellationTokenSource _cancellationTokenSource;
+
             private readonly ILogger<KafkaConsumer> _logger;
 
             public ConsumerImpl(
@@ -67,6 +77,7 @@ namespace CsKafka.Consuming
                     buffering.MinInFlightBytes,
                     buffering.MaxInFlightBytes);
 
+                _consumingTaskCompletionSource = new TaskCompletionSource();
                 _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 _logger = logger;
 
@@ -76,49 +87,61 @@ namespace CsKafka.Consuming
 
                 var onRevoke = (List<TopicPartitionOffset> xs)
                     => xs.ForEach(x => _partitionedMessageChannel.Revoke(x.TopicPartition));
+
+                _options = options;
                 _consumer = ConsumerBuilder.BuildWithLogging(options.Inner, logger, onRevoke);
-                _consumer.Subscribe(options.Topics);
             }
 
             public async Task Start()
             {
-                try
-                {
-                    var ct = _cancellationTokenSource.Token;
+                _consumer.Subscribe(_options.Topics);
+               
+                var ct = _cancellationTokenSource.Token;
+                using var _ = ct.Register(() => _consumingTaskCompletionSource.TrySetResult());
 
-                    while (!ct.IsCancellationRequested)
+                var loopTask = Task.Run(
+                    async () => 
                     {
-                        _inflightMessageCounter.AwaitThreshold(_consumer, ct);
-
-                        try
+                        while (!ct.IsCancellationRequested)
                         {
-                            var result = _consumer.Consume(ct);
-                            if (result != null)
+                            _inflightMessageCounter.AwaitThreshold(_consumer, ct);
+
+                            try
                             {
-                                var messageBytesCount = ApproximateMessageBytes(result);
-                                _inflightMessageCounter.Delta(+messageBytesCount);
+                                var result = _consumer.Consume(ct);
+                                if (result != null)
+                                {
+                                    var messageBytesCount = ApproximateMessageBytes(result);
+                                    _inflightMessageCounter.Delta(+messageBytesCount);
 
-                                await _partitionedMessageChannel.WriteAsync(
-                                    result.TopicPartition,
-                                    result);
+                                    await _partitionedMessageChannel.WriteAsync(
+                                        result.TopicPartition,
+                                        result);
+                                }
                             }
-                        }
-                        catch (ConsumeException ex)
-                        {
-                            _logger.LogError(ex, "[Consuming] Exception {name}", _consumer.Name);
-                        }
-                        catch (OperationCanceledException ex)
-                        {
-                            _logger.LogError(ex, "[Consuming] Cancelled {name}", _consumer.Name);
-                        }
-                    }
+                            catch (ConsumeException ex)
+                            {
+                                _logger.LogError(ex, "[Consuming] Exception {name}", _consumer.Name);
+                            }
+                            catch (OperationCanceledException ex)
+                            {
+                                _logger.LogError(ex, "[Consuming] Cancelled {name}", _consumer.Name);
+                            }
+                        }             
+                    }, 
+                    ct
+                );
+
+                try 
+                {
+                    await _consumingTaskCompletionSource.Task;
                 }
-                finally 
-                { 
+                finally
+                {
                     _consumer.Dispose();
                     _cancellationTokenSource.Dispose();
                     _partitionedMessageChannel.Close();
-                }
+                }                
             }
 
             private async Task ConsumePartition(
@@ -148,6 +171,8 @@ namespace CsKafka.Consuming
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "[Consuming] Exiting batch processing loop due to handler exception");
+
+                            _consumingTaskCompletionSource.TrySetException(ex);
 
                             if (!_cancellationTokenSource.IsCancellationRequested)
                                 _cancellationTokenSource.Cancel();
