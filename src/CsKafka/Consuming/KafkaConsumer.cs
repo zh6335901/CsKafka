@@ -12,8 +12,8 @@ namespace CsKafka.Consuming
 {
     /// <summary>
     /// Kafka consumer that wraps a Confluent.Kafka.Consumer.
-    /// It provides a batched consumption mode, Messages that belongs to same topic partition will be consumed sequentially,
-    /// But messages that belongs to different topic partitions can run concurrently.
+    /// It provides a batched consumption mode, batches that belongs to same topic partition will be consumed sequentially.
+    /// But batches that belongs to different topic partitions can run concurrently.
     /// It consumes constantly until Stop() method invoked or handler is faulted.
     /// </summary>
     public class KafkaConsumer
