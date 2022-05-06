@@ -10,6 +10,12 @@ using System.Threading.Tasks;
 
 namespace CsKafka.Consuming
 {
+    /// <summary>
+    /// Kafka consumer that wraps a Confluent.Kafka.Consumer.
+    /// It provides a batched consumption mode, Messages that belongs to same topic partition will be consumed sequentially,
+    /// But messages that belongs to different topic partitions can run concurrently.
+    /// It consumes constantly until Stop() method invoked or handler is faulted.
+    /// </summary>
     public class KafkaConsumer
     {
         private readonly Task _consumingTask;
@@ -28,6 +34,9 @@ namespace CsKafka.Consuming
 
         public bool IsRunning => !_consumingTask.IsCompleted;
 
+        /// <summary>
+        /// Request cancellation of consuming
+        /// </summary>
         public void Stop() 
         {
             if (!_cancellationTokenSource.IsCancellationRequested)
@@ -37,9 +46,16 @@ namespace CsKafka.Consuming
         /// <summary>
         /// Use 'await _consumer.AwaitShutdown()' to await asynchronously until consume loop stop or is faulted. 
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Consuming task</returns>
         public Task AwaitShutdown() => _consumingTask;
 
+        /// <summary>
+        /// Start a kafka consumer and return it's instance.
+        /// </summary>
+        /// <param name="options">Kafka consumer options</param>
+        /// <param name="handler">The handler of messages</param>
+        /// <param name="logger">Kafka consumer logger</param>
+        /// <returns>The instnace of KafkaConsumer</returns>
         public static KafkaConsumer Start(
             KafkaConsumerOptions options,
             Func<ConsumeResult<string, byte[]>[], Task> handler,
@@ -47,6 +63,45 @@ namespace CsKafka.Consuming
         {
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
+            var impl = new ConsumerImpl(options, handler, ct, logger);
+            var consumingTask = impl.Start();
+
+            return new KafkaConsumer(consumingTask, cts, logger);
+        }
+
+        /// <summary>
+        /// Start a kafka consumer that schedules handlers grouped by message key, And return it's instance.
+        /// </summary>
+        /// <param name="options">Kafka consumer options</param>
+        /// <param name="keyHandler">The handler of messages that has same message key</param>
+        /// <param name="degreeOfParallelism">The number of keyHandlers running concurrently</param>
+        /// <param name="logger">Kafka consumer logger</param>
+        /// <returns>The instnace of KafkaConsumer</returns>
+        public static KafkaConsumer StartByKey(
+            KafkaConsumerOptions options,
+            Func<ConsumeResult<string, byte[]>[], Task> keyHandler,
+            int degreeOfParallelism,
+            ILogger<KafkaConsumer> logger)
+        {
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+
+            var semaphore = new SemaphoreSlim(degreeOfParallelism);
+            var handler = async (ConsumeResult<string, byte[]>[] results) =>
+            {
+                var tasks = results
+                    .GroupBy(r => r.Message.Key)
+                    .Select(async g => 
+                    {
+                        await semaphore.WaitAsync(ct);
+                        try { await keyHandler(g.ToArray()); }
+                        finally { semaphore.Release(); }
+                    })
+                    .ToArray();
+
+                await Task.WhenAll(tasks);
+            };
+
             var impl = new ConsumerImpl(options, handler, ct, logger);
             var consumingTask = impl.Start();
 
