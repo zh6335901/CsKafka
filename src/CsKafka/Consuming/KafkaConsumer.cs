@@ -23,9 +23,9 @@ namespace CsKafka.Consuming
         private readonly ILogger<KafkaConsumer> _logger;
 
         private KafkaConsumer(
-            Task consumingTask, 
-            CancellationTokenSource cts, 
-            ILogger<KafkaConsumer> logger) 
+            Task consumingTask,
+            CancellationTokenSource cts,
+            ILogger<KafkaConsumer> logger)
         {
             _consumingTask = consumingTask;
             _cancellationTokenSource = cts;
@@ -37,7 +37,7 @@ namespace CsKafka.Consuming
         /// <summary>
         /// Request cancellation of consuming
         /// </summary>
-        public void Stop() 
+        public void Stop()
         {
             if (!_cancellationTokenSource.IsCancellationRequested)
                 _cancellationTokenSource.Cancel();
@@ -91,7 +91,7 @@ namespace CsKafka.Consuming
             {
                 var tasks = results
                     .GroupBy(r => r.Message.Key)
-                    .Select(async g => 
+                    .Select(async g =>
                     {
                         await semaphore.WaitAsync(ct);
                         try { await keyHandler(g.ToArray()); }
@@ -137,7 +137,7 @@ namespace CsKafka.Consuming
                 _logger = logger;
 
                 _partitionedMessageChannel = new PartitionedMessageChannel<ConsumeResult<string, byte[]>>();
-                _partitionedMessageChannel.OnPartitionAdded += 
+                _partitionedMessageChannel.OnPartitionAdded +=
                     async (_, e) => await ConsumePartition(e.MessageChannelReader, buffering, handler);
 
                 var onRevoke = (List<TopicPartitionOffset> xs)
@@ -150,12 +150,12 @@ namespace CsKafka.Consuming
             public async Task Start()
             {
                 _consumer.Subscribe(_options.Topics);
-               
+
                 var ct = _cancellationTokenSource.Token;
                 using var _ = ct.Register(() => _consumingTaskCompletionSource.TrySetResult());
 
                 var loopTask = Task.Run(
-                    async () => 
+                    async () =>
                     {
                         while (!ct.IsCancellationRequested)
                         {
@@ -182,25 +182,27 @@ namespace CsKafka.Consuming
                             {
                                 _logger.LogError(ex, "[Consuming] Cancelled {name}", _consumer.Name);
                             }
-                        }             
-                    }, 
+                        }
+                    },
                     ct
                 );
 
-                try 
+                try
                 {
                     await _consumingTaskCompletionSource.Task;
                 }
                 finally
                 {
                     _consumer.Dispose();
+                    if (!_cancellationTokenSource.IsCancellationRequested)
+                        _cancellationTokenSource.Cancel();
                     _cancellationTokenSource.Dispose();
                     _partitionedMessageChannel.Close();
-                }                
+                }
             }
 
             private async Task ConsumePartition(
-                ChannelReader<ConsumeResult<string, byte[]>> reader, 
+                ChannelReader<ConsumeResult<string, byte[]>> reader,
                 Buffering buffering,
                 Func<ConsumeResult<string, byte[]>[], Task> handler)
             {
@@ -226,21 +228,16 @@ namespace CsKafka.Consuming
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "[Consuming] Exiting batch processing loop due to handler exception");
-
                             _consumingTaskCompletionSource.TrySetException(ex);
-
-                            if (!_cancellationTokenSource.IsCancellationRequested)
-                                _cancellationTokenSource.Cancel();
-
                             break;
                         }
                     }
                 }
-                
+
                 async Task<(ConsumeResult<string, byte[]>[], bool)> NextBatch()
                 {
                     var (len, isCompleted) = await reader.FillBufferAsync(
-                        buffer, 
+                        buffer,
                         buffering.MaxBatchDelay);
 
                     var batch = new ConsumeResult<string, byte[]>[len];
